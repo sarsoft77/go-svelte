@@ -1,23 +1,77 @@
 <script>
   import { onMount } from 'svelte';
   
+  export let searchQuery = '';
+  
   let products = [];
   let loading = true;
+  let loadingMore = false;
   let error = '';
   let selectedProduct = null;
+  let page = 1;
+  let hasMore = true;
+  let searchTimeout;
+  let pageElement;
 
-  onMount(async () => {
+  async function loadProducts(reset = false) {
+    if (reset) {
+      page = 1;
+      products = [];
+      hasMore = true;
+    }
+    
     try {
-      const res = await fetch('/api/products?pageSize=100');
+      const res = await fetch(`/api/products?page=${page}&pageSize=12&search=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      products = data.products || [];
+      
+      if (reset) {
+        products = data.products || [];
+      } else {
+        products = [...products, ...(data.products || [])];
+      }
+      hasMore = data.page < data.totalPages;
     } catch (e) {
       error = 'Ошибка загрузки продуктов: ' + e.message;
     } finally {
       loading = false;
+      loadingMore = false;
     }
+  }
+
+  function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      loading = true;
+      loadProducts(true);
+    }, 300);
+  }
+
+  function handleScroll() {
+    if (!pageElement || loadingMore || !hasMore || loading) return;
+    
+    const scrollTop = window.scrollY;
+    const scrollHeight = document.documentElement.scrollHeight;
+    const clientHeight = window.innerHeight;
+    
+    if (scrollTop + clientHeight >= scrollHeight - 200) {
+      loadingMore = true;
+      page++;
+      loadProducts();
+    }
+  }
+
+  onMount(() => {
+    loadProducts();
   });
+
+  $: if (searchQuery !== undefined) {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      loading = true;
+      loadProducts(true);
+    }, 300);
+  }
 
   function showDetails(product) {
     selectedProduct = product;
@@ -28,7 +82,9 @@
   }
 </script>
 
-<div class="page">
+<svelte:window on:scroll={handleScroll} />
+
+<div class="page" bind:this={pageElement}>
   <h1>Наша продукция</h1>
   <p class="subtitle">Лучшие решения для вашего бизнеса</p>
   
@@ -48,6 +104,12 @@
         </div>
       {/each}
     </div>
+    {#if loadingMore}
+      <p class="loading">Загрузка...</p>
+    {/if}
+    {#if !hasMore && products.length > 0}
+      <p class="end-message">Загружено все</p>
+    {/if}
   {/if}
 </div>
 
@@ -64,6 +126,14 @@
 {/if}
 
 <style>
+  .page {
+    padding-top: 1rem;
+  }
+  .end-message {
+    text-align: center;
+    color: #999;
+    padding: 2rem;
+  }
   .products {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

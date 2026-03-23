@@ -12,7 +12,7 @@ import (
 func GetProducts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	search := c.Query("search")
+	search := c.Request.URL.Query().Get("search")
 	sortKey := c.DefaultQuery("sort", "id")
 	sortDir := c.DefaultQuery("sortDir", "asc")
 
@@ -39,16 +39,14 @@ func GetProducts(c *gin.Context) {
 	}
 
 	whereClause := ""
-	args := []interface{}{}
 	if search != "" {
-		whereClause = "WHERE name LIKE ? OR description LIKE ? OR price LIKE ?"
-		searchPattern := "%" + search + "%"
-		args = append(args, searchPattern, searchPattern, searchPattern)
+		searchEscaped := strings.ReplaceAll(search, "'", "''")
+		whereClause = "WHERE name LIKE '%" + searchEscaped + "%'"
 	}
 
 	var total int
 	countQuery := "SELECT COUNT(*) FROM products " + whereClause
-	if err := db.DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+	if err := db.DB.QueryRow(countQuery).Scan(&total); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -58,10 +56,9 @@ func GetProducts(c *gin.Context) {
 
 	query := "SELECT id, name, description, price FROM products " + whereClause +
 		" ORDER BY " + orderColumn + " " + orderDir +
-		" LIMIT ? OFFSET ?"
-	args = append(args, pageSize, offset)
+		" LIMIT " + strconv.Itoa(pageSize) + " OFFSET " + strconv.Itoa(offset)
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := db.DB.Query(query)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return

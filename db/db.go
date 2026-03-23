@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
+	"math/rand"
+	"time"
 
-	"github.com/example/myapp/models"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -26,33 +28,64 @@ func Close() {
 }
 
 func createTable() error {
+	DB.Exec("DROP TABLE IF EXISTS products")
 	_, err := DB.Exec(`
-		CREATE TABLE IF NOT EXISTS products (
+		CREATE TABLE products (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
 			description TEXT,
 			price TEXT NOT NULL
 		)
 	`)
+	DB.Exec("PRAGMA case_sensitive_like = OFF")
 	if err != nil {
 		return err
 	}
 
-	var count int
-	DB.QueryRow("SELECT COUNT(*) FROM products").Scan(&count)
-	if count == 0 {
-		products := []models.Product{
-			{Name: "Продукт А", Description: "Высокое качество и надёжность", Price: "1000 ₽"},
-			{Name: "Продукт Б", Description: "Профессиональное решение", Price: "2500 ₽"},
-			{Name: "Продукт В", Description: "Премиум сегмент", Price: "5000 ₽"},
-			{Name: "Продукт Г", Description: "Бюджетный вариант", Price: "750 ₽"},
-			{Name: "Продукт Д", Description: "Для бизнеса", Price: "3000 ₽"},
-			{Name: "Продукт Е", Description: "Универсальное решение", Price: "4500 ₽"},
-		}
-		for _, p := range products {
-			DB.Exec("INSERT INTO products (name, description, price) VALUES (?, ?, ?)", p.Name, p.Description, p.Price)
+	DB.Exec(`CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)`)
+
+	seedProducts()
+
+	return nil
+}
+
+func seedProducts() {
+	rand.Seed(time.Now().UnixNano())
+
+	prefixes := []string{"Про", "Супер", "Мега", "Ультра", "Премиум", "Бизнес", "Эксперт", "Стандарт", "Базовый", "Элит"}
+	products := []string{"Станок", "Инструмент", "Оборудование", "Система", "Устройство", "Аппарат", "Комплекс", "Решение", "Продукт", "Изделие"}
+	suffixes := []string{"Экстра", "Плюс", "Про", "Люкс", "Стандарт", "Оптима", "Макси", "Мини", "Универсал", "Профи"}
+	descriptions := []string{
+		"Высокое качество и надёжность", "Профессиональное решение", "Премиум сегмент",
+		"Бюджетный вариант", "Для бизнеса", "Универсальное решение",
+		"Инновационная разработка", "Проверенное временем", "Современный дизайн",
+		"Экологически чистый материал", "Энергосберегающая технология",
+		"Безопасная эксплуатация", "Гарантия качества", "Сервисное обслуживание",
+	}
+
+	tx, _ := DB.Begin()
+	stmt, _ := tx.Prepare("INSERT INTO products (name, description, price) VALUES (?, ?, ?)")
+
+	batch := 1000
+	for i := 0; i < 10000; i++ {
+		prefix := prefixes[rand.Intn(len(prefixes))]
+		product := products[rand.Intn(len(products))]
+		suffix := suffixes[rand.Intn(len(suffixes))]
+		desc := descriptions[rand.Intn(len(descriptions))]
+		price := rand.Intn(99000) + 100
+
+		name := fmt.Sprintf("%s %s %s", prefix, product, suffix)
+		priceStr := fmt.Sprintf("%d ₽", price)
+
+		stmt.Exec(name, desc, priceStr)
+
+		if (i+1)%batch == 0 {
+			tx.Commit()
+			tx, _ = DB.Begin()
+			stmt, _ = tx.Prepare("INSERT INTO products (name, description, price) VALUES (?, ?, ?)")
 		}
 	}
 
-	return nil
+	stmt.Close()
+	tx.Commit()
 }
