@@ -2,6 +2,8 @@ package router
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/example/myapp/handlers"
 	"github.com/gin-gonic/gin"
@@ -22,8 +24,10 @@ func Setup() *gin.Engine {
 		c.Next()
 	})
 
-	r.Static("/assets", "frontend/dist/assets")
-	r.LoadHTMLGlob("frontend/dist/*.html")
+	workDir, _ := os.Getwd()
+	absPath := filepath.Join(workDir, "../frontend/dist")
+	r.Static("/assets", absPath+"/assets")
+	r.LoadHTMLGlob(absPath + "/*.html")
 
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", nil)

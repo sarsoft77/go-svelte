@@ -5,9 +5,11 @@ BINARY_NAME=myapp
 run: dev
 
 dev:
+	@echo "Building frontend..."
+	@cd frontend && npm run build >/dev/null 2>&1
 	@echo "Starting backend (Go)..."
-	@go run . &
-	@sleep 2
+	@cd backend && go run . &
+	@sleep 3
 	@echo "Starting frontend (Vite)..."
 	@cd frontend && npm run dev
 	@echo ""
@@ -15,21 +17,21 @@ dev:
 	@echo "Backend API: http://localhost:8080"
 
 backend:
-	go run .
+	cd backend && go run .
 
 frontend:
 	cd frontend && npm run dev
 
 build:
-	go build -o $(BINARY_NAME) .
 	cd frontend && npm run build
+	cd backend && go build -o ../$(BINARY_NAME) .
 
 install:
 	cd frontend && npm install
 
 clean:
 	rm -f $(BINARY_NAME)
-	rm -f products.db
+	rm -rf backend/data
 	cd frontend && rm -rf dist
 
 help:
