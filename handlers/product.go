@@ -27,7 +27,7 @@ func GetProducts(c *gin.Context) {
 		"id":          "id",
 		"name":        "name",
 		"description": "description",
-		"price":       "price",
+		"price":       "CAST(price AS INTEGER)",
 	}
 	orderColumn, ok := validSortKeys[sortKey]
 	if !ok {
